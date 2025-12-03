@@ -1,0 +1,48 @@
+name: release
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions: {}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # needed to write releases
+      id-token: write # needed for keyless signing
+      packages: write # needed for ghcr access
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          egress-policy: audit
+      - name: Checkout code
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4
+        with:
+          fetch-depth: 0
+      - name: Docker Login
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Get rover version
+        id: rover
+        run: |
+          version=$(cat Dockerfile  | grep VERSION= | cut -d '=' -f2)
+          echo "version=$version" >> $GITHUB_OUTPUT
+      - name: Build and push
+        id: build
+        uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
+        with:
+          tags: ghcr.io/doodlescheduling/rover:${{ steps.rover.outputs.version }},ghcr.io/doodlescheduling/rover:latest
+          platforms: linux/amd64,linux/arm64
+      - name: cosign-installer
+        uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
+      - name: Sign container image
+        shell: bash
+        run: |
+          image=ghcr.io/doodlescheduling/rover:${{ steps.rover.outputs.version }}
+          COSIGN_EXPERIMENTAL=1 cosign sign --yes $image@${{ steps.build.outputs.digest }}
