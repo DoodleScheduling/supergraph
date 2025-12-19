@@ -34,6 +34,6 @@ jobs:
         id: build
         uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # v6
         with:
-          tags: ghcr.io/doodlescheduling/rover:latest
+          tags: ghcr.io/doodlescheduling/${{ github.event.repository.name }}:latest
           platforms: linux/amd64,linux/arm64
           push: 'false'
